@@ -1,0 +1,1541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Thrust — Beyond Stage Zero load cell and pressure logger.">
+<title>Thrust — Beyond Stage Zero</title>
+<script>
+  (function () {
+    try {
+      var stored = localStorage.getItem('thrust-theme');
+      var theme =
+        stored === 'light' || stored === 'dark'
+          ? stored
+          : window.matchMedia('(prefers-color-scheme: dark)').matches
+            ? 'dark'
+            : 'light';
+      document.documentElement.dataset.theme = theme;
+      document.documentElement.style.colorScheme = theme;
+    } catch (e) {}
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Public+Sans:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+:root,
+[data-theme='light'] {
+  --ink-900: #0b0d0f;
+  --ink-800: #14181c;
+  --ink-700: #1e242b;
+  --ink-600: #2a323b;
+  --ink-500: #4a535d;
+  --ink-400: #7b8590;
+  --ink-300: #b8bfc7;
+  --paper-100: #fafaf7;
+  --paper-200: #f1f1ec;
+  --paper-300: #e4e4dd;
+  --ignition: #ff5a1f;
+  --ignition-hover: #e64613;
+  --ignition-soft: #ffe4d7;
+  --telem-amber: #9a6b00;
+  --telem-green: #0f7a3e;
+  --telem-red: #c42323;
+  --telem-cyan: #0e7a8a;
+  --accent: var(--ignition);
+  --fg: var(--ink-900);
+  --fg-muted: var(--ink-500);
+  --fg-faint: var(--ink-400);
+  --bg: var(--paper-100);
+  --bg-elev: var(--paper-200);
+  --bg-panel: #fafaf7;
+  --bg-panel-solid: #fafaf7;
+  --line: rgba(11, 13, 15, 0.12);
+  --line-strong: rgba(11, 13, 15, 0.2);
+  --hover: rgba(11, 13, 15, 0.035);
+  --chart-grid: rgba(11, 13, 15, 0.07);
+  --glow-ignition: rgba(255, 90, 31, 0.12);
+  --font-brand: 'Syne', 'Avenir Next', sans-serif;
+  --font-display: 'Public Sans', 'Segoe UI', sans-serif;
+  --font-body: 'Public Sans', 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --r: 4px;
+  --r-lg: 6px;
+}
+[data-theme='dark'] {
+  --ink-900: #fafaf7;
+  --ink-800: #e4e4dd;
+  --ink-700: #b8bfc7;
+  --ink-600: #7b8590;
+  --ink-500: #9aa3ad;
+  --ink-400: #7b8590;
+  --ink-300: #2a323b;
+  --paper-100: #0b0d0f;
+  --paper-200: #14181c;
+  --paper-300: #1e242b;
+  --ignition: #ff5a1f;
+  --ignition-hover: #ff7a47;
+  --ignition-soft: #3a1d12;
+  --telem-amber: #ffc400;
+  --telem-green: #18a957;
+  --telem-red: #e33636;
+  --telem-cyan: #2dc2d9;
+  --fg: #fafaf7;
+  --fg-muted: #9aa3ad;
+  --fg-faint: #7b8590;
+  --bg: #0b0d0f;
+  --bg-elev: #14181c;
+  --bg-panel: #14181c;
+  --bg-panel-solid: #14181c;
+  --line: rgba(250, 250, 247, 0.1);
+  --line-strong: rgba(250, 250, 247, 0.18);
+  --hover: rgba(250, 250, 247, 0.05);
+  --chart-grid: rgba(250, 250, 247, 0.07);
+  --glow-ignition: rgba(255, 90, 31, 0.18);
+  --accent: var(--ignition);
+}
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--font-body);
+  color: var(--fg);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.2s var(--ease), color 0.2s var(--ease);
+}
+button, input, select {
+  font: inherit;
+  color: inherit;
+}
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--ignition); outline-offset: 2px; }
+
+.app {
+  min-height: 100dvh;
+  position: relative;
+}
+.shell {
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 1.15rem clamp(0.9rem, 1.8vw, 1.55rem) 3.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.95rem;
+}
+
+/* Header — Octopus ops hub */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  padding: 0 0 0.9rem;
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+  animation: rise 0.45s var(--ease) both;
+}
+.brand-block {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 1.35rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.brand-mark {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.08rem;
+}
+.brand-kicker {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+.brand {
+  margin: 0;
+  font-family: var(--font-brand);
+  font-size: clamp(1.55rem, 1.6vw + 0.7rem, 2.05rem);
+  font-weight: 700;
+  letter-spacing: -0.045em;
+  line-height: 0.95;
+  color: var(--fg);
+}
+.brand em { font-style: normal; color: var(--ignition); }
+.header-meta {
+  display: flex;
+  gap: 0.45rem;
+  align-items: center;
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+.build {
+  padding: 0.35rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--bg-panel-solid);
+}
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--line);
+  background: var(--bg-panel-solid);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  border-radius: var(--r);
+  transition: background 0.15s var(--ease), color 0.15s var(--ease), border-color 0.15s var(--ease);
+}
+.theme-toggle:hover {
+  background: var(--hover);
+  color: var(--fg);
+  border-color: var(--line-strong);
+}
+
+.eyebrow {
+  margin: 0.35rem 0 0.45rem;
+  font-family: var(--font-display);
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.btn {
+  padding: 0.55rem 0.85rem;
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r);
+  background: var(--bg-panel-solid);
+  color: var(--fg);
+  transition: background 0.15s var(--ease), color 0.15s var(--ease),
+    border-color 0.15s var(--ease), opacity 0.15s;
+}
+.btn:hover:not(:disabled) { background: var(--hover); }
+.btn:disabled { opacity: 0.38; cursor: not-allowed; }
+.btn.pri {
+  background: var(--fg);
+  border-color: var(--fg);
+  color: var(--bg-panel-solid);
+}
+.btn.pri:hover:not(:disabled) { opacity: 0.92; }
+.btn.live {
+  background: var(--ignition);
+  border-color: var(--ignition);
+  color: #0b0d0f;
+}
+.btn.live:hover:not(:disabled) {
+  background: var(--ignition-hover);
+  border-color: var(--ignition-hover);
+}
+.btn.danger {
+  border-color: color-mix(in srgb, var(--telem-red) 55%, var(--line));
+  color: var(--telem-red);
+  background: color-mix(in srgb, var(--telem-red) 8%, var(--bg-panel-solid));
+}
+.btn.danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--telem-red) 14%, var(--bg-panel-solid));
+}
+
+.seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.15rem;
+  padding: 0.2rem;
+  border: 1px solid var(--line);
+  border-radius: calc(var(--r) + 2px);
+  background: var(--bg-elev);
+}
+.seg button {
+  padding: 0.38rem 0.75rem;
+  border: 1px solid transparent;
+  background: transparent;
+  font-family: var(--font-body);
+  font-size: 0.84rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--fg-muted);
+  border-radius: var(--r);
+  transition: background 0.18s var(--ease), color 0.18s var(--ease),
+    border-color 0.18s var(--ease), box-shadow 0.18s var(--ease);
+}
+.seg button:hover { background: var(--hover); color: var(--fg); }
+.seg button[aria-pressed='true'] {
+  color: var(--fg);
+  background: color-mix(in srgb, var(--ignition) 12%, var(--bg-panel-solid));
+  box-shadow: inset 0 -2px 0 var(--ignition);
+}
+
+.dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--fg-faint);
+  margin-right: 0.45rem;
+  vertical-align: 1px;
+}
+.dot.on { background: var(--telem-green); }
+.dot.rec { background: var(--ignition); animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+@media (prefers-reduced-motion: reduce) { .dot.rec { animation: none; } }
+
+.status {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: var(--fg-muted);
+}
+
+.note {
+  color: var(--fg-muted);
+  font-size: 0.82rem;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 268px;
+  gap: 0.75rem;
+  align-items: start;
+}
+@media (max-width: 880px) { .grid { grid-template-columns: 1fr; } }
+
+.panel {
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--bg-panel-solid);
+  min-width: 0;
+}
+.plotwrap {
+  position: relative;
+  overflow: hidden;
+}
+canvas { display: block; width: 100%; height: 440px; cursor: crosshair; }
+.readout {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--fg-muted);
+  pointer-events: none;
+}
+.readout b { color: var(--fg); font-weight: 600; }
+.readout .t { color: var(--ignition); }
+.readout .p { color: var(--telem-cyan); }
+.hint {
+  position: absolute;
+  left: 12px;
+  bottom: 10px;
+  font-size: 0.72rem;
+  color: var(--fg-faint);
+  pointer-events: none;
+}
+.legend {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  display: flex;
+  gap: 14px;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  color: var(--fg-muted);
+}
+.legend span { user-select: none; }
+.legend span.hidden { opacity: 0.3; }
+.legend b { font-weight: 550; color: var(--fg); }
+.legend .sw {
+  display: inline-block;
+  width: 14px;
+  height: 2px;
+  vertical-align: 3px;
+  margin-right: 5px;
+}
+#lg-t .sw { background: var(--ignition); }
+#lg-p .sw { background: var(--telem-cyan); }
+.axlbl {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+.axlbl.left { color: var(--ignition); }
+.axlbl.right { color: var(--telem-cyan); }
+
+.side { display: flex; flex-direction: column; gap: 0.65rem; }
+.card {
+  background: var(--bg-panel-solid);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 0.85rem 0.9rem 1rem;
+}
+.card h3 {
+  margin: 0 0 0.55rem;
+  font-family: var(--font-display);
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+.stat {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.28rem 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.76rem;
+}
+.stat:last-child { border-bottom: 0; }
+.stat span { color: var(--fg-muted); }
+.stat b {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 550;
+  font-variant-numeric: tabular-nums;
+}
+.stat b.hi { color: var(--ignition); }
+.stat b.co { color: var(--telem-cyan); }
+.stat b.warn, b.warn { color: var(--telem-amber); }
+
+.ctrl {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+  align-items: start;
+}
+@media (max-width: 880px) { .ctrl { grid-template-columns: 1fr; } }
+.ctrl .row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 0.28rem 0;
+}
+.ctrl .lbl { color: var(--fg-muted); font-size: 0.78rem; }
+.ctrl .lbl b { color: var(--telem-cyan); font-weight: 600; }
+.ctrl .num {
+  width: 96px;
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 0.5rem 0.6rem;
+}
+.ctrl .num::placeholder { color: var(--fg-faint); }
+.ctrl .btn { padding: 0.4rem 0.7rem; font-size: 0.78rem; white-space: nowrap; }
+
+.cmd { display: flex; gap: 0.4rem; margin-top: 0.65rem; }
+.cmd input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 0.55rem 0.7rem;
+}
+.cmd input::placeholder { color: var(--fg-faint); }
+
+.quick { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+
+.logbar {
+  display: flex;
+  align-items: baseline;
+  gap: 0.65rem;
+  margin: 0.35rem 0 0;
+}
+.logbar .grow { flex: 1; }
+.logbar .zoom { display: inline-flex; gap: 0.25rem; }
+.logbar .zoom button {
+  background: var(--bg-panel-solid);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 0.2rem 0.55rem;
+  color: var(--fg-muted);
+  font-size: 0.78rem;
+}
+.logbar .zoom button:hover { color: var(--fg); border-color: var(--line-strong); }
+
+.log {
+  margin: 0;
+  background: var(--bg-panel-solid);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 0.7rem 0.85rem;
+  height: 300px;
+  min-height: 80px;
+  max-height: 80vh;
+  overflow-y: auto;
+  resize: vertical;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  line-height: 1.6;
+  color: var(--fg-muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.log .e { color: var(--telem-red); }
+.log .o { color: var(--fg-faint); }
+
+.drop {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, var(--bg) 93%, transparent);
+  z-index: 50;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed var(--ignition);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--ignition);
+}
+.drop.show { display: flex; }
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .header { animation: none; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+<div class="shell">
+
+<header class="header">
+  <div class="brand-block">
+    <div class="brand-mark">
+      <p class="brand-kicker">Beyond Stage Zero</p>
+      <h1 class="brand">Thrust<em>.</em></h1>
+    </div>
+  </div>
+  <div class="header-meta">
+    <span class="build">HX711 + pressure · CSV</span>
+    <button type="button" class="theme-toggle" id="theme" aria-label="Switch colour theme">Dark</button>
+  </div>
+</header>
+
+<p class="eyebrow">Source</p>
+<div class="bar">
+  <button class="btn pri" id="connect">Connect board</button>
+  <button class="btn pri" id="relay">Connect relay</button>
+  <button class="btn" id="record" disabled>Start recording</button>
+  <button class="btn" id="load">Open CSV file</button>
+  <button class="btn" id="clear">Clear</button>
+  <span class="status"><span class="dot" id="dot"></span><span id="status">Not connected</span></span>
+</div>
+<p class="note" id="serialnote"></p>
+
+<p class="eyebrow">Pressure units</p>
+<div class="bar">
+  <div class="seg" id="units">
+    <button data-u="psi" aria-pressed="true">psi</button>
+    <button data-u="bar" aria-pressed="false">bar</button>
+    <button data-u="MPa" aria-pressed="false">MPa</button>
+  </div>
+  <span class="note">Board logs MPa · displayed and entered in your chosen unit</span>
+</div>
+
+<p class="eyebrow">Traces</p>
+<div class="bar">
+  <span class="axlbl left">left</span>
+  <div class="seg" id="seg-left">
+    <button data-v="thrust" aria-pressed="true">Thrust</button>
+    <button data-v="raw" aria-pressed="false">Load counts</button>
+    <button data-v="off" aria-pressed="false">Off</button>
+  </div>
+  <span class="axlbl right" style="margin-left:10px">right</span>
+  <div class="seg" id="seg-right">
+    <button data-v="pressure" aria-pressed="true">Pressure</button>
+    <button data-v="praw" aria-pressed="false">Pressure counts</button>
+    <button data-v="off" aria-pressed="false">Off</button>
+  </div>
+</div>
+
+<div class="grid">
+  <div class="panel plotwrap">
+    <canvas id="plot"></canvas>
+    <div class="legend" id="legend">
+      <span id="lg-t"><i class="sw"></i><b id="lg-tn">thrust</b></span>
+      <span id="lg-p"><i class="sw"></i><b id="lg-pn">pressure</b></span>
+    </div>
+    <div class="readout" id="readout"></div>
+    <div class="hint">Drag across the plot to set a burn window · double-click to reset</div>
+  </div>
+
+  <div class="side">
+    <div class="card">
+      <h3>Capture</h3>
+      <div class="stat"><span>Samples</span><b id="s-n">—</b></div>
+      <div class="stat"><span>Duration</span><b id="s-dur">—</b></div>
+      <div class="stat"><span>Mean rate</span><b id="s-rate">—</b></div>
+      <div class="stat"><span>Max gap</span><b id="s-gap">—</b></div>
+    </div>
+
+    <div class="card">
+      <h3>Thrust — window</h3>
+      <div class="stat"><span>Peak</span><b id="s-peak" class="hi">—</b></div>
+      <div class="stat"><span>Mean</span><b id="s-mean">—</b></div>
+      <div class="stat"><span>Burn time</span><b id="s-burn">—</b></div>
+      <div class="stat"><span>Total impulse</span><b id="s-imp" class="hi">—</b></div>
+      <div class="stat"><span>Baseline</span><b id="s-base">—</b></div>
+    </div>
+
+    <div class="card">
+      <h3>Pressure — window</h3>
+      <div class="stat"><span>Peak</span><b id="p-peak" class="co">—</b></div>
+      <div class="stat"><span>Mean</span><b id="p-mean">—</b></div>
+      <div class="stat"><span>At thrust peak</span><b id="p-atpeak">—</b></div>
+      <div class="stat"><span>Baseline</span><b id="p-base">—</b></div>
+    </div>
+
+    <div class="card">
+      <h3>Export</h3>
+      <div class="quick">
+        <button class="btn" id="csv">CSV</button>
+        <button class="btn" id="png">PNG</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="eyebrow">Board controls</p>
+<div class="ctrl">
+
+  <div class="card">
+    <h3>Load cell</h3>
+    <div class="row">
+      <button class="btn q" data-c="t" disabled>Tare</button>
+      <span class="lbl">zero at current load</span>
+    </div>
+    <div class="row">
+      <input class="num" id="in-k" type="number" step="0.001" placeholder="kg">
+      <button class="btn q2" data-c="k" data-in="in-k" disabled>Calibrate</button>
+      <span class="lbl">with known mass</span>
+    </div>
+    <div class="row">
+      <input class="num" id="in-f" type="number" step="0.1" placeholder="counts/kg">
+      <button class="btn q2" data-c="f" data-in="in-f" disabled>Set factor</button>
+      <span class="lbl">skip re-hanging masses</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Pressure</h3>
+    <div class="row">
+      <button class="btn q" data-c="z" disabled>Zero</button>
+      <span class="lbl">at atmosphere</span>
+    </div>
+    <div class="row">
+      <input class="num" id="in-q" type="number" step="0.01" placeholder="known">
+      <button class="btn q2" data-c="q" data-in="in-q" disabled>Span</button>
+      <span class="lbl">in <b class="u">psi</b>, pressure applied now</span>
+    </div>
+    <div class="row">
+      <input class="num" id="in-g" type="number" step="1" placeholder="full scale">
+      <button class="btn q2" data-c="g" data-in="in-g" disabled>Set range</button>
+      <span class="lbl">in <b class="u">psi</b></span>
+    </div>
+    <div class="row">
+      <input class="num" id="in-y" type="number" step="0.0001" placeholder="MPa/V">
+      <button class="btn q2" data-c="y" data-in="in-y" disabled>Set slope</button>
+      <span class="lbl">always MPa/V</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Stream &amp; config</h3>
+    <div class="row">
+      <button class="btn q" data-c="s" disabled>Start / stop</button>
+      <span class="lbl">toggles streaming</span>
+    </div>
+    <div class="row">
+      <input class="num" id="in-p" type="number" step="10" placeholder="ms">
+      <button class="btn q2" data-c="p" data-in="in-p" disabled>Period</button>
+      <span class="lbl">0 = free run</span>
+    </div>
+    <div class="row">
+      <button class="btn q" data-c="r" disabled>Read once</button>
+      <button class="btn q" data-c="m" disabled>Averaged</button>
+    </div>
+    <div class="row">
+      <button class="btn q" data-c="c" disabled>Config</button>
+      <button class="btn q" data-c="e" disabled>EEPROM</button>
+      <button class="btn q" data-c="?" disabled>Help</button>
+    </div>
+    <div class="row">
+      <button class="btn q pri" data-c="w" disabled>Save to EEPROM</button>
+      <span class="lbl">nothing persists without this</span>
+    </div>
+    <div class="row">
+      <button class="btn q danger" id="btn-x" disabled>Erase all</button>
+      <span class="lbl">wipes both calibrations</span>
+    </div>
+    <div class="cmd">
+      <input id="cmdin" placeholder="raw command" autocomplete="off" spellcheck="false">
+      <button class="btn" id="send" disabled>Send</button>
+    </div>
+  </div>
+
+</div>
+
+<div class="logbar">
+  <span class="eyebrow" style="margin:0">Board output</span>
+  <span class="grow"></span>
+  <span class="note">drag the corner to resize</span>
+  <span class="zoom">
+    <button id="zoom-out" title="Smaller text">A&minus;</button>
+    <button id="zoom-in" title="Larger text">A+</button>
+  </span>
+  <button class="btn" id="wipe" style="padding:0.2rem 0.55rem;font-size:0.78rem">Clear</button>
+</div>
+<div class="log" id="log"></div>
+<p class="note">Pressure is held internally in MPa whatever the board sends, so switching units never disturbs the data. Impulse is trapezoidal on the millis column at 9.80665 N/kg; the sample index is never used for timing.</p>
+
+</div>
+</div>
+
+<div class="drop" id="drop">Drop CSV to load</div>
+
+<script>
+
+const G = 9.80665;
+const PSI_PER_MPA = 145.0377;
+
+/* rows: {n, t, v, p, raw, praw}   p is always MPa, as sent by the board */
+let rows = [];
+let loadUnit = 'kg';       // as reported by the board
+let dispUnit = 'psi';      // what we show
+let leftMode  = 'thrust';  // thrust | raw | off
+let rightMode = 'pressure';// pressure | praw | off
+
+let win = null;
+let port = null, reader = null, writer = null, recording = false, keepReading = false;
+let dragStart = null, dragNow = null;
+
+const $ = id => document.getElementById(id);
+
+function cssVar(name, fallback){
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return v || fallback;
+}
+function plotTheme(){
+  return {
+    thrust: cssVar('--ignition', '#ff5a1f'),
+    pressure: cssVar('--telem-cyan', '#2dc2d9'),
+    grid: cssVar('--chart-grid', 'rgba(11, 13, 15, 0.07)'),
+    muted: cssVar('--fg-faint', '#7b8590'),
+    leftLabel: cssVar('--ignition', '#ff5a1f'),
+    rightLabel: cssVar('--telem-cyan', '#2dc2d9'),
+    winFill: cssVar('--glow-ignition', 'rgba(255, 90, 31, 0.12)'),
+    winStroke: cssVar('--ignition', '#ff5a1f'),
+    empty: cssVar('--fg-faint', '#7b8590'),
+  };
+}
+const logEl = $('log');
+
+function log(msg, cls){
+  const s = document.createElement('span');
+  if (cls) s.className = cls;
+  s.textContent = msg + '\n';
+  logEl.appendChild(s);
+  while (logEl.childNodes.length > 400) logEl.removeChild(logEl.firstChild);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+/* ---------- units ----------
+   The board always sends MPa. These convert only for display, and back
+   again when a value is sent to the board. */
+
+function fromMPa(mpa){
+  if (dispUnit === 'bar') return mpa * 10;
+  if (dispUnit === 'psi') return mpa * PSI_PER_MPA;
+  return mpa;
+}
+function toMPa(v){
+  if (dispUnit === 'bar') return v / 10;
+  if (dispUnit === 'psi') return v / PSI_PER_MPA;
+  return v;
+}
+function presDec(){
+  return dispUnit === 'psi' ? 1 : (dispUnit === 'bar' ? 2 : 4);
+}
+function fmtP(mpa){
+  return fromMPa(mpa).toFixed(presDec()) + ' ' + dispUnit;
+}
+
+/* ---------- parsing ---------- */
+
+/* Log board chatter without storing samples. */
+function sniffLine(line){
+  line = line.trim();
+  if (line.startsWith('#')) log(line, 'o');
+}
+
+function parseLine(line){
+  line = line.trim();
+  if (!line) return;
+
+  if (line.startsWith('#')){ log(line, 'o'); return; }
+
+  const c = line.split(',');
+  if (c.length < 3){ log(line, 'o'); return; }
+
+  if (isNaN(parseFloat(c[0]))){
+    loadUnit = (c[2] || 'kg').trim();
+    log(line, 'o');
+    return;
+  }
+
+  const n = parseInt(c[0], 10);
+  const t = parseFloat(c[1]);
+  const v = parseFloat(c[2]);
+  if (!isFinite(t) || !isFinite(v)) return;
+
+  let p = NaN, raw = NaN, praw = NaN;
+  if (c.length >= 6){
+    p    = parseFloat(c[3]);     // always MPa
+    raw  = parseFloat(c[4]);
+    praw = parseFloat(c[5]);
+  } else if (c.length === 4){
+    raw = parseFloat(c[3]);      // old format: n,millis,kg,raw
+  }
+
+  rows.push({n, t, v, p, raw, praw});
+}
+
+function loadText(text){
+  rows = []; win = null;
+  for (const l of text.split(/\r?\n/)) parseLine(l);
+  rows.sort((a,b) => a.t - b.t);
+  log('Loaded ' + rows.length + ' samples');
+  refresh();
+}
+
+function hasPressure(){
+  return rows.some(r => isFinite(r.p));
+}
+
+/* ---------- statistics ---------- */
+
+function windowRows(){
+  if (!win) return rows;
+  return rows.filter(r => r.t >= win[0] && r.t <= win[1]);
+}
+
+function baselineOf(arr){
+  if (!arr.length) return 0;
+  const s = arr.slice().sort((a,b) => a-b);
+  const k = Math.max(1, Math.floor(s.length * 0.1));
+  let b = 0;
+  for (let i = 0; i < k; i++) b += s[i];
+  return b / k;
+}
+
+function stats(){
+  const n = rows.length;
+  $('s-n').textContent = n || '—';
+
+  const blank = ids => ids.forEach(i => $(i).textContent = '—');
+
+  if (n < 2){
+    blank(['s-dur','s-rate','s-gap','s-peak','s-mean','s-burn','s-imp','s-base',
+           'p-peak','p-mean','p-atpeak','p-base']);
+    return;
+  }
+
+  const span = rows[n-1].t - rows[0].t;
+  const mean = span / (n - 1);
+  let maxGap = 0;
+  for (let i = 1; i < n; i++){
+    const g = rows[i].t - rows[i-1].t;
+    if (g > maxGap) maxGap = g;
+  }
+
+  $('s-dur').textContent  = (span/1000).toFixed(2) + ' s';
+  $('s-rate').textContent = (1000/mean).toFixed(1) + ' Hz';
+  const gapEl = $('s-gap');
+  gapEl.textContent = maxGap.toFixed(0) + ' ms';
+  gapEl.className = maxGap > 2.5 * mean ? 'warn' : '';
+
+  const w = windowRows();
+  if (w.length < 2){
+    blank(['s-peak','s-mean','s-burn','s-imp','s-base','p-peak','p-mean','p-atpeak','p-base']);
+    return;
+  }
+
+  /* thrust */
+  const tBase = baselineOf(w.map(r => r.v));
+  let peak = -Infinity, sum = 0, imp = 0, peakIdx = 0;
+  for (let i = 0; i < w.length; i++){
+    const v = w[i].v - tBase;
+    if (v > peak){ peak = v; peakIdx = i; }
+    sum += v;
+    if (i > 0){
+      const dt = (w[i].t - w[i-1].t) / 1000;
+      imp += 0.5 * ((w[i-1].v - tBase) + v) * dt;
+    }
+  }
+  const burn = (w[w.length-1].t - w[0].t) / 1000;
+  const lu = loadUnit === 'kg' ? ' kg' : ' ' + loadUnit;
+
+  $('s-peak').textContent = peak.toFixed(3) + lu;
+  $('s-mean').textContent = (sum/w.length).toFixed(3) + lu;
+  $('s-burn').textContent = burn.toFixed(3) + ' s';
+  $('s-base').textContent = tBase.toFixed(3) + lu;
+  $('s-imp').textContent  = loadUnit === 'kg'
+    ? (imp * G).toFixed(1) + ' N\u00B7s'
+    : imp.toFixed(1) + ' ' + loadUnit + '\u00B7s';
+
+  /* pressure */
+  const pw = w.filter(r => isFinite(r.p));
+  if (pw.length < 2){
+    blank(['p-peak','p-mean','p-atpeak','p-base']);
+    return;
+  }
+  const pBase = baselineOf(pw.map(r => r.p));
+  let pPeak = -Infinity, pSum = 0;
+  for (const r of pw){
+    const p = r.p - pBase;
+    if (p > pPeak) pPeak = p;
+    pSum += p;
+  }
+
+  $('p-peak').textContent = fmtP(pPeak);
+  $('p-mean').textContent = fmtP(pSum / pw.length);
+  $('p-base').textContent = fmtP(pBase);
+
+  // Chamber pressure at the instant of peak thrust - the pairing that
+  // matters when checking nozzle and grain behaviour against each other.
+  const at = w[peakIdx];
+  $('p-atpeak').textContent = isFinite(at.p) ? fmtP(at.p - pBase) : '—';
+}
+
+/* ---------- what each axis is showing ----------
+   Raw counts share an axis with their scaled counterpart rather than
+   adding more axes: when a reading looks wrong, the raw column tells
+   you whether it is the maths or the hardware, and you want it in the
+   same place on the plot. */
+
+function axisSpec(mode){
+  switch (mode){
+    case 'thrust':   return {sel: r => r.v,             name: 'thrust',          dec: 3, unit: () => loadUnit};
+    case 'raw':      return {sel: r => r.raw,           name: 'load counts',     dec: 0, unit: () => ''};
+    case 'pressure': return {sel: r => fromMPa(r.p),    name: 'pressure',        dec: () => presDec(), unit: () => dispUnit};
+    case 'praw':     return {sel: r => r.praw,          name: 'pressure counts', dec: 0, unit: () => ''};
+    default:         return null;
+  }
+}
+
+function decOf(spec){
+  return typeof spec.dec === 'function' ? spec.dec() : spec.dec;
+}
+
+/* ---------- plot ---------- */
+
+const cv = $('plot');
+const ctx = cv.getContext('2d');
+const PAD = {l:58, r:58, t:14, b:28};
+
+function sizeCanvas(){
+  const dpr = window.devicePixelRatio || 1;
+  const r = cv.getBoundingClientRect();
+  cv.width  = Math.round(r.width * dpr);
+  cv.height = Math.round(r.height * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return r;
+}
+
+function niceStep(range, target){
+  const raw = range / target;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const k = raw / mag;
+  let s;
+  if (k < 1.5) s = 1; else if (k < 3) s = 2; else if (k < 7) s = 5; else s = 10;
+  return s * mag;
+}
+
+function extent(sel){
+  let lo = Infinity, hi = -Infinity;
+  for (const r of rows){
+    const v = sel(r);
+    if (!isFinite(v)) continue;
+    if (v < lo) lo = v;
+    if (v > hi) hi = v;
+  }
+  if (!isFinite(lo)) return null;
+  if (hi - lo < 1e-9){ hi += 0.5; lo -= 0.5; }
+  const pad = (hi - lo) * 0.08;
+  return [lo - pad, hi + pad];
+}
+
+function drawTrace(sel, X, Y, colour, pw){
+  ctx.strokeStyle = colour;
+  ctx.lineWidth = 1.4;
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+
+  const cols = Math.max(1, Math.floor(pw));
+  const per = rows.length / cols;
+  let started = false;
+
+  if (per > 2){
+    for (let c = 0; c < cols; c++){
+      const a = Math.floor(c * per), b = Math.min(rows.length, Math.floor((c+1) * per));
+      let lo = Infinity, hi = -Infinity;
+      for (let i = a; i < b; i++){
+        const v = sel(rows[i]);
+        if (!isFinite(v)) continue;
+        if (v < lo) lo = v;
+        if (v > hi) hi = v;
+      }
+      if (!isFinite(lo)) continue;
+      const x = PAD.l + c;
+      if (!started){ ctx.moveTo(x, Y(hi)); started = true; }
+      else ctx.lineTo(x, Y(hi));
+      ctx.lineTo(x, Y(lo));
+    }
+  } else {
+    for (const r of rows){
+      const v = sel(r);
+      if (!isFinite(v)) continue;
+      const x = X(r.t), y = Y(v);
+      if (!started){ ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+    }
+  }
+  ctx.stroke();
+}
+
+function draw(){
+  const r = sizeCanvas();
+  const W = r.width, H = r.height;
+  const C = plotTheme();
+  ctx.clearRect(0, 0, W, H);
+
+  const pw = W - PAD.l - PAD.r;
+  const ph = H - PAD.t - PAD.b;
+
+  if (rows.length < 2){
+    ctx.fillStyle = C.empty;
+    ctx.font = '12px "IBM Plex Mono", ui-monospace, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('No data — connect the board or open a CSV', W/2, H/2);
+    return;
+  }
+
+  if (leftMode === 'off' && rightMode === 'off'){
+    ctx.fillStyle = C.empty;
+    ctx.font = '12px "IBM Plex Mono", ui-monospace, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Both traces are off', W/2, H/2);
+    return;
+  }
+
+  const t0 = rows[0].t, t1 = rows[rows.length-1].t;
+  const X = t => PAD.l + (t - t0) / (t1 - t0) * pw;
+
+  const lSpec = axisSpec(leftMode);
+  const rSpec = axisSpec(rightMode);
+  const lExt = lSpec ? extent(lSpec.sel) : null;
+  const rExt = rSpec ? extent(rSpec.sel) : null;
+
+  const Yl = v => PAD.t + (lExt[1] - v) / (lExt[1] - lExt[0]) * ph;
+  const Yr = v => PAD.t + (rExt[1] - v) / (rExt[1] - rExt[0]) * ph;
+
+  ctx.strokeStyle = C.grid; ctx.lineWidth = 1;
+  ctx.font = '10px "IBM Plex Mono", ui-monospace, monospace';
+
+  /* left axis, and its gridlines */
+  if (lExt){
+    const s = niceStep(lExt[1] - lExt[0], 6);
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = C.leftLabel;
+    for (let v = Math.ceil(lExt[0]/s)*s; v <= lExt[1]; v += s){
+      const y = Math.round(Yl(v)) + 0.5;
+      ctx.beginPath(); ctx.moveTo(PAD.l, y); ctx.lineTo(W - PAD.r, y); ctx.stroke();
+      ctx.fillText(v.toFixed(Math.max(0, -Math.floor(Math.log10(s)))), PAD.l - 8, y);
+    }
+  } else if (rExt){
+    // No left trace, so draw the grid from the right scale instead of
+    // leaving the plot without one.
+    const s = niceStep(rExt[1] - rExt[0], 6);
+    ctx.strokeStyle = C.grid;
+    for (let v = Math.ceil(rExt[0]/s)*s; v <= rExt[1]; v += s){
+      const y = Math.round(Yr(v)) + 0.5;
+      ctx.beginPath(); ctx.moveTo(PAD.l, y); ctx.lineTo(W - PAD.r, y); ctx.stroke();
+    }
+  }
+
+  /* right axis labels */
+  if (rExt){
+    const s = niceStep(rExt[1] - rExt[0], 6);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = C.rightLabel;
+    for (let v = Math.ceil(rExt[0]/s)*s; v <= rExt[1]; v += s){
+      const y = Math.round(Yr(v)) + 0.5;
+      ctx.fillText(v.toFixed(Math.max(0, -Math.floor(Math.log10(s)))), W - PAD.r + 8, y);
+    }
+  }
+
+  /* time axis */
+  const tspan = (t1 - t0) / 1000;
+  const tss = niceStep(tspan, 6);
+  ctx.strokeStyle = C.grid;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  ctx.fillStyle = C.muted;
+  for (let s = 0; s <= tspan; s += tss){
+    const x = Math.round(X(t0 + s*1000)) + 0.5;
+    ctx.beginPath(); ctx.moveTo(x, PAD.t); ctx.lineTo(x, H - PAD.b); ctx.stroke();
+    ctx.fillText(s.toFixed(tss < 1 ? 1 : 0) + 's', x, H - PAD.b + 6);
+  }
+
+  /* selection */
+  if (win){
+    ctx.fillStyle = C.winFill;
+    const xa = X(Math.max(win[0], t0)), xb = X(Math.min(win[1], t1));
+    ctx.fillRect(xa, PAD.t, xb - xa, ph);
+    ctx.strokeStyle = C.winStroke;
+    ctx.beginPath();
+    ctx.moveTo(Math.round(xa)+0.5, PAD.t); ctx.lineTo(Math.round(xa)+0.5, H-PAD.b);
+    ctx.moveTo(Math.round(xb)+0.5, PAD.t); ctx.lineTo(Math.round(xb)+0.5, H-PAD.b);
+    ctx.stroke();
+  }
+  if (dragStart !== null && dragNow !== null){
+    ctx.fillStyle = C.winFill;
+    ctx.fillRect(Math.min(dragStart,dragNow), PAD.t, Math.abs(dragNow-dragStart), ph);
+  }
+
+  if (rExt) drawTrace(rSpec.sel, X, Yr, C.pressure, pw);
+  if (lExt) drawTrace(lSpec.sel, X, Yl, C.thrust, pw);
+}
+
+/* ---------- crosshair ---------- */
+
+cv.addEventListener('mousemove', e => {
+  const r = cv.getBoundingClientRect();
+  const x = e.clientX - r.left;
+  if (dragStart !== null){ dragNow = x; draw(); }
+  if (rows.length < 2) return;
+
+  const t0 = rows[0].t, t1 = rows[rows.length-1].t;
+  const pw = r.width - PAD.l - PAD.r;
+  const t = t0 + (x - PAD.l) / pw * (t1 - t0);
+
+  let best = 0, bd = Infinity;
+  for (let i = 0; i < rows.length; i++){
+    const d = Math.abs(rows[i].t - t);
+    if (d < bd){ bd = d; best = i; }
+  }
+  const s = rows[best];
+  const lSpec = axisSpec(leftMode);
+  const rSpec = axisSpec(rightMode);
+  let html = '';
+
+  if (lSpec){
+    const v = lSpec.sel(s);
+    if (isFinite(v)) html += '<b class="t">' + v.toFixed(decOf(lSpec)) + '</b> ' + lSpec.unit();
+  }
+  if (rSpec){
+    const v = rSpec.sel(s);
+    if (isFinite(v)){
+      if (html) html += '<br>';
+      html += '<b class="p">' + v.toFixed(decOf(rSpec)) + '</b> ' + rSpec.unit();
+    }
+  }
+  html += (html ? '<br>' : '') + ((s.t - t0)/1000).toFixed(3) + ' s';
+  $('readout').innerHTML = html;
+});
+cv.addEventListener('mouseleave', () => { $('readout').innerHTML = ''; });
+
+cv.addEventListener('mousedown', e => {
+  const r = cv.getBoundingClientRect();
+  dragStart = e.clientX - r.left; dragNow = dragStart;
+});
+window.addEventListener('mouseup', e => {
+  if (dragStart === null) return;
+  const r = cv.getBoundingClientRect();
+  const end = e.clientX - r.left;
+  if (Math.abs(end - dragStart) > 6 && rows.length > 1){
+    const t0 = rows[0].t, t1 = rows[rows.length-1].t;
+    const pw = r.width - PAD.l - PAD.r;
+    const f = px => t0 + (px - PAD.l) / pw * (t1 - t0);
+    win = [f(Math.min(dragStart,end)), f(Math.max(dragStart,end))];
+    stats();
+  }
+  dragStart = null; dragNow = null; draw();
+});
+cv.addEventListener('dblclick', () => { win = null; stats(); draw(); });
+
+function refresh(){ stats(); draw(); }
+
+/* ---------- units UI ---------- */
+
+$('units').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  dispUnit = b.dataset.u;
+  [...$('units').children].forEach(x => x.setAttribute('aria-pressed', x === b));
+  syncUnitLabels();
+  syncLegend();
+  refresh();
+});
+
+function syncLegend(){
+  const l = axisSpec(leftMode), r = axisSpec(rightMode);
+  $('lg-tn').textContent = l ? l.name + (l.unit() ? ' (' + l.unit() + ')' : '') : 'off';
+  $('lg-pn').textContent = r ? r.name + (r.unit() ? ' (' + r.unit() + ')' : '') : 'off';
+  $('lg-t').classList.toggle('hidden', !l);
+  $('lg-p').classList.toggle('hidden', !r);
+}
+
+function wireSeg(id, apply){
+  $(id).addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    apply(b.dataset.v);
+    [...$(id).children].forEach(x => x.setAttribute('aria-pressed', x === b));
+    syncLegend();
+    draw();
+  });
+}
+wireSeg('seg-left',  v => leftMode  = v);
+wireSeg('seg-right', v => rightMode = v);
+
+/* ---------- web serial ---------- */
+
+const hasSerial = 'serial' in navigator;
+
+async function connect(){
+  try {
+    port = await navigator.serial.requestPort();
+    await port.open({baudRate: 115200});
+    writer = port.writable.getWriter();
+    keepReading = true;
+    setConnected(true);
+    log('Connected at 115200 baud');
+    readLoop();
+    setTimeout(() => send('c'), 1600);   // after the board's auto-reset
+  } catch (err){
+    log('Connect failed: ' + err.message, 'e');
+  }
+}
+
+async function readLoop(){
+  const dec = new TextDecoder();
+  let buf = '';
+  try {
+    while (port && port.readable && keepReading){
+      reader = port.readable.getReader();
+      try {
+        while (true){
+          const {value, done} = await reader.read();
+          if (done) break;
+          buf += dec.decode(value, {stream:true});
+          let i;
+          while ((i = buf.indexOf('\n')) >= 0){
+            const line = buf.slice(0, i);
+            buf = buf.slice(i + 1);
+            if (recording) parseLine(line);
+            else sniffLine(line);
+          }
+        }
+      } finally { reader.releaseLock(); reader = null; }
+    }
+  } catch (err){
+    log('Read error: ' + err.message, 'e');
+  }
+}
+
+async function disconnect(){
+  keepReading = false;
+  try { if (reader) await reader.cancel(); } catch(e){}
+  try { if (writer){ writer.releaseLock(); writer = null; } } catch(e){}
+  try { if (port) await port.close(); } catch(e){}
+  port = null;
+  setConnected(false);
+  log('Disconnected');
+}
+
+function setConnected(on){
+  $('connect').textContent = on ? 'Disconnect' : 'Connect board';
+  $('connect').classList.toggle('pri', !on);
+  $('record').disabled = !on;
+  $('send').disabled = !on;
+  document.querySelectorAll('.q, .q2').forEach(b => b.disabled = !on);
+  $('btn-x').disabled = !on;
+  $('dot').className = 'dot' + (on ? ' on' : '');
+  $('status').textContent = on ? 'Connected · COM open' : 'Not connected';
+}
+
+async function send(cmd){
+  if (ws && ws.readyState === 1){ ws.send(JSON.stringify({type:'cmd', cmd})); return; }
+  if (!writer) return;
+  await writer.write(new TextEncoder().encode(cmd + '\n'));
+  log('> ' + cmd);
+}
+
+/* ---------- relay ---------- */
+
+let ws = null, wsRetry = null;
+
+function relayURL(){
+  if (location.protocol === 'file:') return null;
+  return (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host;
+}
+
+function connectRelay(url){
+  if (ws){ ws.onclose = null; ws.close(); ws = null; }
+  clearTimeout(wsRetry);
+  ws = new WebSocket(url);
+
+  ws.onopen = () => {
+    log('Relay connected — ' + url);
+    setConnected(true);
+    $('status').textContent = 'Relay connected';
+    // Ask for config straight away so the pressure unit is known before
+    // any data arrives. Without it the app has to guess, and guessing
+    // wrong scales everything by 145.
+    setTimeout(() => send('c'), 400);
+  };
+
+  ws.onmessage = ev => {
+    let m;
+    try { m = JSON.parse(ev.data); } catch { return; }
+    if (m.type === 'line'){
+      if (recording) parseLine(m.line);
+      else sniffLine(m.line);
+    }
+    if (m.type === 'status'){
+      $('status').textContent = m.serial
+        ? 'Relay · ' + (m.port || 'serial') + ' open'
+        : 'Relay · waiting for board';
+      $('dot').className = 'dot' + (m.serial ? ' on' : '');
+    }
+    if (m.type === 'log') log('Relay logging to ' + m.path, 'o');
+  };
+
+  ws.onclose = () => {
+    log('Relay disconnected — retrying', 'e');
+    setConnected(false);
+    $('status').textContent = 'Relay lost · retrying';
+    wsRetry = setTimeout(() => connectRelay(url), 3000);
+  };
+  ws.onerror = () => {};
+}
+
+function disconnectRelay(){
+  clearTimeout(wsRetry);
+  if (ws){ ws.onclose = null; ws.close(); ws = null; }
+  setConnected(false);
+  log('Relay closed');
+}
+
+/* ---------- ui wiring ---------- */
+
+$('connect').onclick = () => port ? disconnect() : connect();
+
+$('relay').onclick = () => {
+  if (ws){ disconnectRelay(); $('relay').textContent = 'Connect relay'; return; }
+  const url = prompt('Relay address', relayURL() || 'ws://localhost:8080');
+  if (!url) return;
+  $('relay').textContent = 'Disconnect relay';
+  connectRelay(url);
+};
+
+if (relayURL()){
+  $('connect').disabled = true;
+  $('connect').title = 'Serial is held by the relay server';
+  $('serialnote').textContent =
+    'Served from the relay — direct serial is unavailable because the server owns the port.';
+  connectRelay(relayURL());
+  $('relay').textContent = 'Disconnect relay';
+} else if (!hasSerial){
+  $('connect').disabled = true;
+  $('serialnote').textContent =
+    'Live capture needs Chrome or Edge. You can still open saved CSV files here.';
+}
+
+$('record').onclick = () => {
+  recording = !recording;
+  $('record').textContent = recording ? 'Stop recording' : 'Start recording';
+  $('record').classList.toggle('live', recording);
+  $('dot').className = 'dot ' + (recording ? 'rec' : 'on');
+  $('status').textContent = recording ? 'Recording' : 'Connected';
+  if (recording){ rows = []; win = null; refresh(); log('Recording started'); }
+  else log('Recording stopped — ' + rows.length + ' samples');
+};
+
+setInterval(() => { if (recording) refresh(); }, 250);
+
+$('load').onclick = () => {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = '.csv,.txt,text/plain';
+  inp.onchange = () => { const f = inp.files[0]; if (f) f.text().then(loadText); };
+  inp.click();
+};
+
+$('clear').onclick = () => { rows = []; win = null; logEl.textContent = ''; refresh(); };
+
+$('send').onclick = () => { const v = $('cmdin').value.trim(); if (v){ send(v); $('cmdin').value=''; } };
+$('cmdin').addEventListener('keydown', e => { if (e.key === 'Enter') $('send').click(); });
+document.querySelectorAll('.q').forEach(b => b.onclick = () => send(b.dataset.c));
+
+// Buttons that take a value from the input beside them. Pressure values
+// are entered in whatever unit is on display and converted to MPa here,
+// because the board speaks only MPa.
+const PRESSURE_CMDS = ['q','g'];
+
+document.querySelectorAll('.q2').forEach(b => {
+  b.onclick = () => {
+    const el = $(b.dataset.in);
+    const raw = el.value.trim();
+    if (raw === ''){
+      log('Enter a value first for "' + b.dataset.c + '"', 'e');
+      el.focus();
+      return;
+    }
+    const cmd = b.dataset.c;
+    let val = raw;
+    if (PRESSURE_CMDS.includes(cmd)){
+      const mpa = toMPa(parseFloat(raw));
+      if (!isFinite(mpa)){ log('Not a number: ' + raw, 'e'); return; }
+      val = mpa.toFixed(6);
+      if (dispUnit !== 'MPa') log(raw + ' ' + dispUnit + ' = ' + val + ' MPa');
+    }
+    send(cmd + ' ' + val);
+  };
+});
+
+// Enter in a value field fires its button.
+document.querySelectorAll('.ctrl .num').forEach(el => {
+  el.addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return;
+    const b = document.querySelector('.q2[data-in="' + el.id + '"]');
+    if (b && !b.disabled) b.click();
+  });
+});
+
+// Erasing wipes both calibrations, so make it deliberate.
+$('btn-x').onclick = () => {
+  if (confirm('Erase both calibrations on the board?\n\nThis clears the load cell '
+            + 'cal factor and tare, and the pressure zero and slope. It cannot be undone.')){
+    send('x');
+  }
+};
+
+// The span and range fields take whatever unit is on display, so keep
+// their labels honest.
+function syncUnitLabels(){
+  document.querySelectorAll('.ctrl .u').forEach(e => e.textContent = dispUnit);
+}
+
+$('csv').onclick = () => {
+  if (!rows.length) return;
+  const p = hasPressure();
+  const head = p
+    ? 'n,millis,' + loadUnit + ',' + dispUnit + ',raw,praw'
+    : 'n,millis,' + loadUnit + ',raw';
+  const lines = [head];
+  for (const r of rows){
+    lines.push(p
+      ? [r.n, r.t, r.v, isFinite(r.p) ? fromMPa(r.p).toFixed(presDec()) : '',
+         isFinite(r.raw) ? r.raw : '', isFinite(r.praw) ? r.praw : ''].join(',')
+      : [r.n, r.t, r.v, isFinite(r.raw) ? r.raw : ''].join(','));
+  }
+  const blob = new Blob([lines.join('\n')], {type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'thrust-' + new Date().toISOString().slice(0,19).replace(/[:T]/g,'-') + '.csv';
+  a.click();
+};
+
+$('png').onclick = () => {
+  const a = document.createElement('a');
+  a.href = cv.toDataURL('image/png');
+  a.download = 'thrust-plot.png';
+  a.click();
+};
+
+/* ---------- console controls ---------- */
+
+let logSize = 12.5;
+function setLogSize(px){
+  logSize = Math.min(22, Math.max(9, px));
+  logEl.style.fontSize = logSize + 'px';
+}
+$('zoom-in').onclick  = () => setLogSize(logSize + 1);
+$('zoom-out').onclick = () => setLogSize(logSize - 1);
+$('wipe').onclick     = () => { logEl.textContent = ''; };
+
+/* drag and drop */
+const drop = $('drop');
+let dragDepth = 0;
+window.addEventListener('dragenter', e => { e.preventDefault(); dragDepth++; drop.classList.add('show'); });
+window.addEventListener('dragover',  e => e.preventDefault());
+window.addEventListener('dragleave', () => { if (--dragDepth <= 0) drop.classList.remove('show'); });
+window.addEventListener('drop', e => {
+  e.preventDefault(); dragDepth = 0; drop.classList.remove('show');
+  const f = e.dataTransfer.files[0];
+  if (f) f.text().then(loadText);
+});
+
+window.addEventListener('resize', draw);
+syncLegend();
+syncUnitLabels();
+refresh();
+
+const themeBtn = $('theme');
+function syncThemeBtn(){
+  const t = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
+  themeBtn.textContent = t === 'light' ? 'Dark' : 'Light';
+}
+syncThemeBtn();
+themeBtn.onclick = () => {
+  const next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+  document.documentElement.dataset.theme = next;
+  document.documentElement.style.colorScheme = next;
+  try { localStorage.setItem('thrust-theme', next); } catch (e) {}
+  syncThemeBtn();
+  draw();
+};
+log('Ready. Connect the board, or open a CSV.');
+
+</script>
+</body>
+</html>
